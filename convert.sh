@@ -298,7 +298,7 @@ echo "${GREEN}Running bootlocal.sh..."
 EOF
 
 echo "[+] Repacking mydata.tgz"
-tar czf $OUTPUT_DIR/rootfs/tce/mydata.tgz .
+tar czf $OUTPUT_DIR/rootfs/tce/mydata.tgz $MYDATA_TMPDIR
 
 echo "------------------ TC MODULES ------------------"
 
