@@ -89,6 +89,19 @@ function pack_initrd() {
 	return 0
 }
 
+function remove_tc_modules() {
+	local BASEPATH="$1"
+	local MODULES="alsa-modules-$PICORE_KERNEL backlight-$PICORE_KERNEL touchscreen- wireless-$PICORE_KERNEL jivelite.tcz.dep"
+	for MODULE in $MODULES
+	do
+		if [ -f $BASEPATH/$MODULE ]; then
+			echo "Removing $MODULE from output-rootfs..."
+			rm -rf $BASEPATH/$MODULE
+		fi
+	done
+	return 0
+}
+
 function create_wireless_tcz() {
 	local MODULES_DIR="$1"
 	local TARGET_DIR="$2"
@@ -211,12 +224,15 @@ echo "[+] Unpacking Initrd"
 unpack_initrd $TMPDIR/initrd_bbb.cpio.gz $INITRD_BBB_TMPDIR
 unpack_initrd $TMPDIR/initrd_pi.cpio.gz $INITRD_PICORE_TMPDIR
 
+PICORE_KERNEL=$(get_kernel_versionstring $INITRD_PICORE_TMPDIR)
+echo "[+] Detected PiCore Kernel Version: $PICORE_KERNEL"
+
 echo "[+] Copying kernel modules"
 [ -d $INITRD_OUTPUT_TMPDIR ] && rm -rf $INITRD_OUTPUT_TMPDIR
 mkdir -p $INITRD_OUTPUT_TMPDIR
 
 cp -ra $INITRD_PICORE_TMPDIR/* $INITRD_OUTPUT_TMPDIR
-rm -rf $INITRD_OUTPUT_TMPDIR/lib/modules/*
+[ -d $INITRD_OUTPUT_TMPDIR/lib/modules/$PICORE_KERNEL ] && rm -rf $INITRD_OUTPUT_TMPDIR/lib/modules/$PICORE_KERNEL
 mkdir -p $INITRD_OUTPUT_TMPDIR/lib/modules/$BONE_KERNEL
 cp -ra $INITRD_BBB_TMPDIR/lib/modules/$BONE_KERNEL/* $INITRD_OUTPUT_TMPDIR/lib/modules/$BONE_KERNEL
 
@@ -282,6 +298,10 @@ echo "[+] Repacking mydata.tgz"
 tar czf $OUTPUT_DIR/rootfs/tce/mydata.tgz .
 
 echo "------------------ TC MODULES ------------------"
+
+echo "[+] Removing not-needed TC modules"
+remove_tc_modules $OUTPUT_DIR/rootfs/tce/optional
+
 echo "[+] Creating alsa-modules-$BONE_KERNEL.tcz"
 create_alsa_modules_tcz $BONE_BASE_MNT/rootfs/lib/modules/$BONE_KERNEL $OUTPUT_DIR/tcz
 
