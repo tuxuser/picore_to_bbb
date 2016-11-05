@@ -10,9 +10,9 @@ BONE_BASE_MNT="$TMPDIR/mnt/bone"
 PICORE_BASE_MNT="$TMPDIR/mnt/picore"
 OUTPUT_BASE_MNT="$TMPDIR/mnt/output"
 
-INITRD_BBB_TMPDIR="$TMPDIR/initrd_bbb"
-INITRD_PICORE_TMPDIR="$TMPDIR/initrd_pi"
-INITRD_OUTPUT_TMPDIR="$TMPDIR/initrd_out"
+INITRD_BBB_TMPDIR="$TMPDIR/initrd/bbb"
+INITRD_PICORE_TMPDIR="$TMPDIR/initrd/pi"
+INITRD_OUTPUT_TMPDIR="$TMPDIR/initrd/out"
 MYDATA_TMPDIR="$TMPDIR/mydata_tmp"
 
 OUTPUT_DIR="$TMPDIR/output"
@@ -107,8 +107,6 @@ function create_alsa_modules_tcz() {
 	mkdir -p $TARGET_DIR/tmp/lib/modules/$BONE_KERNEL/kernel/drivers/clk
 	cp -ra $MODULES_DIR/kernel/drivers/clk/clk-s2mps11.ko $TARGET_DIR/tmp/lib/modules/$BONE_KERNEL/kernel/drivers/clk/
 	cp -ra $MODULES_DIR/kernel/sound $TARGET_DIR/tmp/lib/modules/$BONE_KERNEL/kernel/
-
-	mksquashfs $TARGET_DIR/tmp $TARGET_DIR/alsa-modules-$BONE_KERNEL.tcz
 	mksquashfs $TARGET_DIR/tmp $TARGET_DIR/alsa-modules-$BONE_KERNEL.tcz &> /dev/null
 	md5sum $TARGET_DIR/alsa-modules-$BONE_KERNEL.tcz > $TARGET_DIR/alsa-modules-$BONE_KERNEL.tcz.md5.txt
 	rm -rf $TARGET_DIR/tmp
@@ -150,6 +148,7 @@ mount_image_partition $PICORE_IMG $PICORE_BASE_MNT/rootfs 2
 BONE_KERNEL=$(get_kernel_versionstring $BONE_BASE_MNT/rootfs)
 echo "[+] Detected Beaglebone Kernel Version: $BONE_KERNEL"
 
+echo "--------------------- BOOT ---------------------"
 echo "[+] Copying uEnv.txt and boot-directory from BBB image to output-directory"
 if [ -f $BONE_BASE_MNT/rootfs/uEnv.txt ]; then 
 	cp -ra $BONE_BASE_MNT/rootfs/uEnv.txt $OUTPUT_DIR/boot/
@@ -176,6 +175,8 @@ echo "[+] Modifying /uEnv.txt..."
 sed 's/mmcargs=setenv bootargs/mmcargs=setenv bootargs nortc/' -i $OUTPUT_DIR/boot/uEnv.txt
 sed 's/root=\/dev\/mmcblk0p1/root=\${mmcroot}/' -i $OUTPUT_DIR/boot/uEnv.txt
 
+
+echo "-------------------- INITRD --------------------"
 echo "[+] Checking for piCore initrd existance"
 if [ ! -f $PICORE_BASE_MNT/boot/$ORIG_INITRD_PI_NAME ]; then
 	echo "[-] $PICORE_BASE_MNT/boot/$ORIG_INITRD_PI_NAME not found!"
@@ -197,11 +198,11 @@ else
 	exit_with_error
 fi
 
-echo "[+] Unpacking Initrds..."
+echo "[+] Unpacking Initrd"
 unpack_initrd $TMPDIR/initrd_bbb.cpio.gz $INITRD_BBB_TMPDIR
 unpack_initrd $TMPDIR/initrd_pi.cpio.gz $INITRD_PICORE_TMPDIR
 
-echo "[+] Assembling new initrd"
+echo "[+] Copying kernel modules"
 [ -d $INITRD_OUTPUT_TMPDIR ] && rm -rf $INITRD_OUTPUT_TMPDIR
 mkdir -p $INITRD_OUTPUT_TMPDIR
 
@@ -210,7 +211,7 @@ rm -rf $INITRD_OUTPUT_TMPDIR/lib/modules/*
 mkdir -p $INITRD_OUTPUT_TMPDIR/lib/modules/$BONE_KERNEL
 cp -ra $INITRD_BBB_TMPDIR/lib/modules/$BONE_KERNEL/* $INITRD_OUTPUT_TMPDIR/lib/modules/$BONE_KERNEL
 
-echo "[+] Copying additional squashfs module..."
+echo "[+] Copying additional squashfs module"
 mkdir -p $INITRD_OUTPUT_TMPDIR/lib/modules/$BONE_KERNEL/kernel/fs/squashfs
 cp -ra $BONE_BASE_MNT/rootfs/lib/modules/$BONE_KERNEL/kernel/fs/squashfs/squashfs.ko $INITRD_OUTPUT_TMPDIR/lib/modules/$BONE_KERNEL/kernel/fs/squashfs
 
@@ -242,22 +243,19 @@ EOF
 echo "[+] Running depmod.pl"
 $DEPMOD -F $OUTPUT_DIR/boot/boot/System.map-$BONE_KERNEL -b $INITRD_OUTPUT_TMPDIR/lib/modules > $INITRD_OUTPUT_TMPDIR/lib/modules/$BONE_KERNEL/modules.dep
 
-echo "[+] Creating alsa-modules-$BONE_KERNEL.tcz"
-create_alsa_modules_tcz $BONE_BASE_MNT/rootfs/lib/modules/$BONE_KERNEL $OUTPUT_DIR/tcz
-
-echo "[+] Creating wireless-$BONE_KERNEL.tcz"
-create_wireless_tcz $BONE_BASE_MNT/rootfs/lib/modules/$BONE_KERNEL $OUTPUT_DIR/tcz
-
-echo "[+] Repacking initrds..."
+echo "[+] Repacking initrd"
 pack_initrd $INITRD_OUTPUT_TMPDIR $OUTPUT_DIR/boot/boot/initrd.img-$BONE_KERNEL
 
+echo "-------------------- ROOTFS --------------------"
 echo "[+] Copying rootfs"
-cp -ra $PICORE_BASE_MNT/rootfs $OUTPUT_DIR/
+cp -ra $PICORE_BASE_MNT/rootfs/tce $OUTPUT_DIR/rootfs/
 
-echo "[+] Modifying mydata.tgz..."
+echo "[+] Unpacking mydata.tgz"
 [ -d $MYDATA_TMPDIR ] && rm -rf $MYDATA_TMPDIR
 mkdir -p $MYDATA_TMPDIR
 tar xf $OUTPUT_DIR/rootfs/tce/mydata.tgz -C $MYDATA_TMPDIR
+
+echo "[+] Modifying mydata.tgz/opt/bootlocal.sh"
 cat << "EOF" > $MYDATA_TMPDIR/opt/bootlocal.sh
 #!/bin/sh
 # put other system startup commands here
@@ -271,12 +269,21 @@ echo "${GREEN}Running bootlocal.sh..."
 /home/tc/www/cgi-bin/do_rebootstuff.sh | tee -a /var/log/pcp_boot.log
 EOF
 
+echo "[+] Repacking mydata.tgz"
+tar czf $OUTPUT_DIR/rootfs/tce/mydata.tgz .
+
+echo "------------------ TC MODULES ------------------"
+echo "[+] Creating alsa-modules-$BONE_KERNEL.tcz"
+create_alsa_modules_tcz $BONE_BASE_MNT/rootfs/lib/modules/$BONE_KERNEL $OUTPUT_DIR/tcz
+
+echo "[+] Creating wireless-$BONE_KERNEL.tcz"
+create_wireless_tcz $BONE_BASE_MNT/rootfs/lib/modules/$BONE_KERNEL $OUTPUT_DIR/tcz
+
 echo "[+] Copying alsa-modules and wireless tcz into mydata.tgz"
 cp -ra $OUTPUT_DIR/tcz/alsa-modules-$BONE_KERNEL.* $OUTPUT_DIR/rootfs/tce/optional/
 cp -ra $OUTPUT_DIR/tcz/wireless-$BONE_KERNEL.* $OUTPUT_DIR/rootfs/tce/optional/
 
-tar czf $OUTPUT_DIR/rootfs/tce/mydata.tgz .
-
+echo "------------------ FINAL IMAGE -----------------"
 echo "[+] Copying skeleton image and ungzipping it..."
 cp $IMG_SKELETON $OUTPUT_IMAGE.gz
 [ -f $OUTPUT_IMAGE ] && rm $OUTPUT_IMAGE
