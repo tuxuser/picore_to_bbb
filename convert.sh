@@ -1,4 +1,9 @@
 #!/bin/bash
+
+## Tested with following images:
+# BBB: bone-debian-8.6-console-armhf-2016-10-30-2gb.img
+# PiCorePlayer: piCorePlayer3.02.img
+
 BASEDIR=$(pwd)
 TMPDIR="$BASEDIR/tmp"
 
@@ -66,8 +71,10 @@ function unpack_initrd() {
 	fi
 	[ -d $DEST_DIR ] && rm -rf $DEST_DIR
 	mkdir -p $DEST_DIR
+	local PWD=$(pwd)
 	cd $DEST_DIR
 	gunzip -c $INITRD_FILE | cpio -imd
+	cd $PWD
 	return 0
 }
 
@@ -75,8 +82,10 @@ function pack_initrd() {
 	local INITRD_UNPACKED="$1"
 	local INITRD_DEST="$2"
 
+	local PWD=$(pwd)
 	cd $INITRD_UNPACKED
 	find . | cpio -o -H newc | gzip > $INITRD_DEST
+	cd $PWD
 	return 0
 }
 
