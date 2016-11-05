@@ -1,0 +1,10 @@
+Converts piCorePlayer image to beaglebone-compatible image
+
+Usage: ./convert.sh in_bone-debian-8.6-console-armhf-2016-10-30-2gb.img in_piCorePlayer3.02.img /tmp/out_bbbCorePlayer3.02.img
+
+P.S: Make sure to run it as-root or in fakeroot -> That is needed to retain file ownerships
+
+CREDITS:
+TinyCore/PiCore: tinycorelinux.net
+piCorePlayer: sites.google.com/site/picoreplayer
+depmod.pl: busybox.net
