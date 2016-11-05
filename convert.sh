@@ -91,13 +91,14 @@ function pack_initrd() {
 
 function remove_tc_modules() {
 	local BASEPATH="$1"
-	local MODULES="alsa-modules-$PICORE_KERNEL backlight-$PICORE_KERNEL touchscreen- wireless-$PICORE_KERNEL jivelite.tcz.dep"
+	local KERNEL_VERSION="$2"
+	MODULES="alsa-modules-${KERNEL_VERSION}.tcz alsa-modules-${KERNEL_VERSION}.tcz.md5.txt backlight-${KERNEL_VERSION}.tcz backlight-${KERNEL_VERSION}.tcz.md5.txt touchscreen-${KERNEL_VERSION}.tcz touchscreen-${KERNEL_VERSION}.tcz.md5.txt wireless-${KERNEL_VERSION}.tcz wireless-${KERNEL_VERSION}.tcz.md5.txt jivelite.tcz.dep"
 	for MODULE in $MODULES
 	do
-		if [ -f $BASEPATH/$MODULE ]; then
-			echo "Removing $MODULE from output-rootfs..."
-			rm -rf $BASEPATH/$MODULE
-		fi
+                if [ -f $BASEPATH/$MODULE ]; then
+                        echo "Removing $MODULE from output-rootfs..."
+                        rm -rf $BASEPATH/$MODULE
+                fi
 	done
 	return 0
 }
@@ -105,18 +106,19 @@ function remove_tc_modules() {
 function create_wireless_tcz() {
 	local MODULES_DIR="$1"
 	local TARGET_DIR="$2"
+	local KERNEL_VERSION="$3"
 
 	[ -d $TARGET_DIR/tmp ] && rm -rf $TARGET_DIR/tmp
-	mkdir -p $TARGET_DIR/tmp/lib/modules/$BONE_KERNEL/kernel/driver/staging
-	mkdir -p $TARGET_DIR/tmp/lib/modules/$BONE_KERNEL/kernel/driver/net
-	mkdir -p $TARGET_DIR/tmp/lib/modules/$BONE_KERNEL/kernel/net
-	cp -ra $MODULES_DIR/kernel/drivers/net/wireless $TARGET_DIR/tmp/lib/modules/$BONE_KERNEL/kernel/driver/net/
-	cp -ra $MODULES_DIR/kernel/drivers/staging/rtl8188eu $TARGET_DIR/tmp/lib/modules/$BONE_KERNEL/kernel/driver/staging/
-	cp -ra $MODULES_DIR/kernel/drivers/staging/rtl8712 $TARGET_DIR/tmp/lib/modules/$BONE_KERNEL/kernel/driver/staging/
-	cp -ra $MODULES_DIR/kernel/net/wireless $TARGET_DIR/tmp/lib/modules/$BONE_KERNEL/kernel/net/
-	cp -ra $MODULES_DIR/kernel/net/mac80211 $TARGET_DIR/tmp/lib/modules/$BONE_KERNEL/kernel/net/
-	mksquashfs $TARGET_DIR/tmp $TARGET_DIR/wireless-$BONE_KERNEL.tcz &> /dev/null
-	md5sum $TARGET_DIR/wireless-$BONE_KERNEL.tcz > $TARGET_DIR/wireless-$BONE_KERNEL.tcz.md5.txt
+	mkdir -p $TARGET_DIR/tmp/lib/modules/$KERNEL_VERSION/kernel/driver/staging
+	mkdir -p $TARGET_DIR/tmp/lib/modules/$KERNEL_VERSION/kernel/driver/net
+	mkdir -p $TARGET_DIR/tmp/lib/modules/$KERNEL_VERSION/kernel/net
+	cp -ra $MODULES_DIR/kernel/drivers/net/wireless $TARGET_DIR/tmp/lib/modules/$KERNEL_VERSION/kernel/driver/net/
+	cp -ra $MODULES_DIR/kernel/drivers/staging/rtl8188eu $TARGET_DIR/tmp/lib/modules/$KERNEL_VERSION/kernel/driver/staging/
+	cp -ra $MODULES_DIR/kernel/drivers/staging/rtl8712 $TARGET_DIR/tmp/lib/modules/$KERNEL_VERSION/kernel/driver/staging/
+	cp -ra $MODULES_DIR/kernel/net/wireless $TARGET_DIR/tmp/lib/modules/$KERNEL_VERSION/kernel/net/
+	cp -ra $MODULES_DIR/kernel/net/mac80211 $TARGET_DIR/tmp/lib/modules/$KERNEL_VERSION/kernel/net/
+	mksquashfs $TARGET_DIR/tmp $TARGET_DIR/wireless-$KERNEL_VERSION.tcz &> /dev/null
+	md5sum $TARGET_DIR/wireless-$KERNEL_VERSION.tcz > $TARGET_DIR/wireless-$KERNEL_VERSION.tcz.md5.txt
 	rm -rf $TARGET_DIR/tmp
 	return 0
 }
@@ -124,13 +126,14 @@ function create_wireless_tcz() {
 function create_alsa_modules_tcz() {
 	local MODULES_DIR="$1"
 	local TARGET_DIR="$2"
+	local KERNEL_VERSION="$3"
 
 	[ -d $TARGET_DIR/tmp ] && rm -rf $TARGET_DIR/tmp
-	mkdir -p $TARGET_DIR/tmp/lib/modules/$BONE_KERNEL/kernel/drivers/clk
-	cp -ra $MODULES_DIR/kernel/drivers/clk/clk-s2mps11.ko $TARGET_DIR/tmp/lib/modules/$BONE_KERNEL/kernel/drivers/clk/
-	cp -ra $MODULES_DIR/kernel/sound $TARGET_DIR/tmp/lib/modules/$BONE_KERNEL/kernel/
-	mksquashfs $TARGET_DIR/tmp $TARGET_DIR/alsa-modules-$BONE_KERNEL.tcz &> /dev/null
-	md5sum $TARGET_DIR/alsa-modules-$BONE_KERNEL.tcz > $TARGET_DIR/alsa-modules-$BONE_KERNEL.tcz.md5.txt
+	mkdir -p $TARGET_DIR/tmp/lib/modules/$KERNEL_VERSION/kernel/drivers/clk
+	cp -ra $MODULES_DIR/kernel/drivers/clk/clk-s2mps11.ko $TARGET_DIR/tmp/lib/modules/$KERNEL_VERSION/kernel/drivers/clk/
+	cp -ra $MODULES_DIR/kernel/sound $TARGET_DIR/tmp/lib/modules/$KERNEL_VERSION/kernel/
+	mksquashfs $TARGET_DIR/tmp $TARGET_DIR/alsa-modules-$KERNEL_VERSION.tcz &> /dev/null
+	md5sum $TARGET_DIR/alsa-modules-$KERNEL_VERSION.tcz > $TARGET_DIR/alsa-modules-$KERNEL_VERSION.tcz.md5.txt
 	rm -rf $TARGET_DIR/tmp
 	return 0
 }
@@ -300,13 +303,13 @@ tar czf $OUTPUT_DIR/rootfs/tce/mydata.tgz .
 echo "------------------ TC MODULES ------------------"
 
 echo "[+] Removing not-needed TC modules"
-remove_tc_modules $OUTPUT_DIR/rootfs/tce/optional
+remove_tc_modules $OUTPUT_DIR/rootfs/tce/optional $PICORE_KERNEL
 
 echo "[+] Creating alsa-modules-$BONE_KERNEL.tcz"
-create_alsa_modules_tcz $BONE_BASE_MNT/rootfs/lib/modules/$BONE_KERNEL $OUTPUT_DIR/tcz
+create_alsa_modules_tcz $BONE_BASE_MNT/rootfs/lib/modules/$BONE_KERNEL $OUTPUT_DIR/tcz $BONE_KERNEL
 
 echo "[+] Creating wireless-$BONE_KERNEL.tcz"
-create_wireless_tcz $BONE_BASE_MNT/rootfs/lib/modules/$BONE_KERNEL $OUTPUT_DIR/tcz
+create_wireless_tcz $BONE_BASE_MNT/rootfs/lib/modules/$BONE_KERNEL $OUTPUT_DIR/tcz $BONE_KERNEL
 
 echo "[+] Copying alsa-modules and wireless tcz into mydata.tgz"
 cp -ra $OUTPUT_DIR/tcz/alsa-modules-$BONE_KERNEL.* $OUTPUT_DIR/rootfs/tce/optional/
